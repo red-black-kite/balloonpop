@@ -1,5 +1,5 @@
 // BalloonPop Service Worker — enables offline play
-const CACHE = 'balloonpop-v1';
+const CACHE = 'balloonpop-v5';
 const ASSETS = [
   './',
   './index.html',

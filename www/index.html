@@ -168,6 +168,18 @@
     .play-btn:hover {transform:scale(1.06);box-shadow:0 12px 32px rgba(254,202,87,.65)}
     .play-btn:active{transform:scale(.97)}
 
+    /* ── RESPONSIVE BALLOON SIZE ── */
+    @media(max-width:480px){
+      .balloon{width:62px;height:74px;font-size:1.5rem}
+      .balloon::before{top:10px;left:11px;width:13px;height:9px}
+      .balloon-string{height:40px}
+    }
+    @media(max-width:360px){
+      .balloon{width:52px;height:62px;font-size:1.25rem}
+      .balloon::before{top:8px;left:9px;width:11px;height:7px}
+      .balloon-string{height:32px}
+    }
+
     /* ── PAUSE ANIMATIONS DURING OVERLAYS (GPU relief) ── */
     body.paused .balloon-wrap,
     body.paused .cloud,
@@ -175,7 +187,7 @@
     body.paused .held-balloon { animation-play-state:paused !important; }
 
     /* ── SETTINGS ── */
-    .settings-card{max-width:440px;padding:32px 36px}
+    .settings-card{max-width:440px;padding:28px 20px}
     .settings-card .big{font-size:3.5rem;margin-bottom:6px}
     .settings-card h1{font-size:2rem;margin-bottom:4px}
     .settings-card .subtitle{font-size:.95rem;color:#888;margin-bottom:22px}
@@ -201,22 +213,22 @@
     }
 
     /* number range */
-    .range-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:4px}
-    .range-group{display:flex;align-items:center;gap:6px}
-    .range-lbl{font-size:.85rem;font-weight:700;color:#888}
+    .range-wrap{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:4px;flex-wrap:nowrap;width:100%;box-sizing:border-box}
+    .range-group{display:flex;align-items:center;gap:4px;min-width:0}
+    .range-lbl{font-size:.8rem;font-weight:700;color:#888;white-space:nowrap}
     .step-btn{
-      width:34px;height:34px;border-radius:50%;border:none;
+      width:30px;height:30px;flex-shrink:0;border-radius:50%;border:none;
       background:linear-gradient(135deg,#ff9f43,#ff6b6b);
-      color:#fff;font-size:1.1rem;font-weight:900;cursor:pointer;
+      color:#fff;font-size:1rem;font-weight:900;cursor:pointer;
       transition:transform .1s;box-shadow:0 3px 8px rgba(255,107,107,.3);
     }
     .step-btn:active{transform:scale(.88)}
     .range-val{
-      font-size:1.5rem;font-weight:900;color:#333;
-      min-width:42px;text-align:center;
-      background:#f0f4ff;border-radius:10px;padding:2px 6px;
+      font-size:1.3rem;font-weight:900;color:#333;
+      min-width:36px;text-align:center;
+      background:#f0f4ff;border-radius:10px;padding:2px 4px;
     }
-    .range-sep{font-size:1.2rem;color:#bbb;font-weight:700}
+    .range-sep{font-size:1.1rem;color:#bbb;font-weight:700;flex-shrink:0}
     .range-hint{
       text-align:center;font-size:.82rem;color:#aaa;
       margin-top:8px;font-weight:600;
@@ -494,18 +506,8 @@
       <div class="range-hint" id="s-hint">10 numbers · 2 batches</div>
     </div>
 
-    <hr class="settings-divider"/>
-
-    <!-- Voice picker -->
-    <div class="s-section">
-      <div class="s-label">Voice</div>
-      <div class="voice-row">
-        <select class="voice-sel" id="voice-select" onchange="onVoiceChange(this.value)">
-          <option>Loading voices…</option>
-        </select>
-        <button class="voice-test-btn" onclick="testVoice()" title="Test voice">🔊</button>
-      </div>
-    </div>
+    <!-- hidden voice select kept for JS compatibility -->
+    <select id="voice-select" style="display:none"></select>
 
     <button class="play-btn" onclick="applySettings()">▶ Let's Play!</button>
   </div>
@@ -606,14 +608,20 @@ function playClap(){
     const src=mkNoise(sz,[hp,bp1,bp2,gn]);
     src.start(t0); src.stop(t0+.06);
   }
-  // cheerful jingle
-  const jingle=[784,988,1175,988,1319,1047], times=[0,.12,.22,.30,.40,.50];
-  jingle.forEach((freq,i)=>{
-    const {o,g}=mkOsc('sine',freq);
-    const {o:o2}=mkOsc('triangle',freq*2); o2.connect(g); // share gain
-    const t=AC.currentTime+.9+times[i];
-    g.gain.setValueAtTime(.28,t); g.gain.exponentialRampToValueAtTime(.001,t+.18);
-    o.start(t); o.stop(t+.2); o2.start(t); o2.stop(t+.2);
+  // ta-da fanfare after clap
+  const fanfare=[523,659,784,1047,1319,1047,1319], ftimes=[0,.1,.18,.26,.36,.48,.54];
+  fanfare.forEach((freq,i)=>{
+    const {o,g}=mkOsc('triangle',freq);
+    const t=AC.currentTime+.9+ftimes[i];
+    const dur=i>=4?.32:.18;
+    g.gain.setValueAtTime(.38,t); g.gain.exponentialRampToValueAtTime(.001,t+dur+.05);
+    o.start(t); o.stop(t+dur+.08);
+    // add a soft octave-up layer on the last two notes for sparkle
+    if(i>=4){
+      const {o:o2,g:g2}=mkOsc('sine',freq*2);
+      g2.gain.setValueAtTime(.12,t); g2.gain.exponentialRampToValueAtTime(.001,t+dur);
+      o2.start(t); o2.stop(t+dur);
+    }
   });
 }
 
@@ -621,39 +629,42 @@ function playClap(){
 //  KIDS VOICE
 // ════════════════════════════════════════════
 let kidsVoice = null;
-let enVoices   = [];   // all English voices available in this browser
+let enVoices   = [];
+// Set by deviceready (native) or web init below
+let _nativeTTS = null;
 
-// Voices Chrome prefers (loaded async); Safari/macOS loads them synchronously
 const PREFERRED_VOICES = [
-  'Google UK English Female',   // Chrome desktop
-  'Google US English',          // Chrome desktop fallback
-  'Microsoft Zira',             // Windows Chrome
-  'Microsoft Libby',            // Windows Edge/Chrome
-  'Samantha',                   // macOS Safari
+  'Google UK English Female',
+  'Google US English',
+  'Microsoft Zira',
+  'Microsoft Libby',
+  'Samantha',
   'Karen','Moira','Tessa','Fiona','Victoria','Nicky','Sandy'
 ];
 
 function initVoice(){
   const all = speechSynthesis.getVoices();
   enVoices = all.filter(v => v.lang.startsWith('en'));
-
-  // Pick best default
   kidsVoice = null;
   for(const name of PREFERRED_VOICES){
     const v = enVoices.find(v => v.name.includes(name));
     if(v){ kidsVoice = v; break; }
   }
   if(!kidsVoice)
-    kidsVoice = enVoices.find(v => /female/i.test(v.name))
-             || enVoices[0] || null;
-
+    kidsVoice = enVoices.find(v => /female/i.test(v.name)) || enVoices[0] || null;
   populateVoicePicker();
 }
 
 function populateVoicePicker(){
   const sel = document.getElementById('voice-select');
-  if(!sel || !enVoices.length) return;
+  if(!sel) return;
   sel.innerHTML = '';
+  if(!enVoices.length){
+    const opt = document.createElement('option');
+    opt.textContent = 'System default voice';
+    sel.appendChild(opt);
+    return;
+  }
   enVoices.forEach((v, i) => {
     const opt = document.createElement('option');
     opt.value = i;
@@ -671,21 +682,70 @@ function testVoice(){
   speakChar(cfg.mode === 'num' ? '5' : 'A');
 }
 
-// Chrome fires onvoiceschanged; call initVoice then too
-if(window.speechSynthesis){
-  speechSynthesis.onvoiceschanged = initVoice;
-  // Also try immediately (works in Safari/Firefox)
-  initVoice();
+function _setNativePicker(){
+  const sel = document.getElementById('voice-select');
+  if(sel){ sel.innerHTML = '<option>Device voice (Android settings)</option>'; sel.disabled = true; }
 }
 
+// 'deviceready' is the Capacitor/Cordova event fired when the native bridge
+// is fully initialised — the only reliable time window.Capacitor is guaranteed
+// to exist in a no-bundler WebView app.
+document.addEventListener('deviceready', function(){
+  if(window.AndroidTTS){
+    // JavascriptInterface path (fastest)
+    _nativeTTS = {
+      speak: (t,p,r) => window.AndroidTTS.speak(t, p, r),
+      stop:  ()      => window.AndroidTTS.stop()
+    };
+  } else if(window.Capacitor && window.Capacitor.isNativePlatform()){
+    // Capacitor plugin bridge path
+    const plugin = (window.Capacitor.Plugins && window.Capacitor.Plugins.TextToSpeech)
+                || window.Capacitor.registerPlugin('TextToSpeech');
+    _nativeTTS = {
+      speak: (t,p,r) => plugin.speak({text:t, lang:'en-US', rate:r, pitch:p, volume:1}).catch(()=>{}),
+      stop:  ()      => plugin.stop().catch(()=>{})
+    };
+  }
+  if(_nativeTTS) _setNativePicker();
+}, false);
+
+// Fallback: if deviceready never fires (web/PWA), initialise Web Speech API.
+// Give Capacitor 3 s to fire deviceready first; if it doesn't, we're on web.
+let _drFired = false;
+document.addEventListener('deviceready', ()=>{ _drFired = true; }, false);
+setTimeout(()=>{
+  if(_drFired) return;
+  if(window.speechSynthesis){
+    speechSynthesis.onvoiceschanged = initVoice;
+    initVoice();
+    let _vtries = 0;
+    const _vpoll = setInterval(()=>{
+      if(speechSynthesis.getVoices().length || ++_vtries > 12){
+        initVoice(); clearInterval(_vpoll);
+      }
+    }, 300);
+  }
+}, 3000);
+
+// Hold a reference to the active utterance to prevent GC mid-speech.
+let _utterRef = null;
 function _speak(text, pitch, rate){
+  // ── Native path (Android): set up by deviceready ──
+  if(_nativeTTS){
+    _nativeTTS.stop();
+    _nativeTTS.speak(text, pitch, rate);
+    return;
+  }
+  // ── Web / PWA fallback: Web Speech API ──
   if(!window.speechSynthesis) return;
-  speechSynthesis.cancel();
+  try{ speechSynthesis.cancel(); }catch(_){}
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'en-US'; u.pitch = pitch; u.rate = rate; u.volume = 1;
-  if(kidsVoice) u.voice = kidsVoice;
-  // Chrome sometimes needs a tiny delay after cancel()
-  setTimeout(() => speechSynthesis.speak(u), 50);
+  u.lang = (kidsVoice && kidsVoice.lang) || 'en-US';
+  u.pitch = pitch; u.rate = rate; u.volume = 1;
+  if(kidsVoice) u.voice = kidsVoice;   // omitted → system default voice
+  _utterRef = u;
+  // tiny delay lets cancel() settle (Android WebView / Chrome quirk)
+  setTimeout(() => { try{ speechSynthesis.speak(u); }catch(_){} }, 60);
 }
 
 function speakChar(ch)        { _speak(ch,   1.4, 0.85); }
@@ -738,6 +798,10 @@ function applySettings(){
 }
 // Show settings screen (used by win/gameover "play again")
 function showSettings(){
+  // hide the win / game-over overlays first — they sit later in the DOM with the
+  // same z-index, so if left visible they paint on top and swallow taps.
+  ['gameover-overlay','win-overlay'].forEach(id=>
+    document.getElementById(id).style.display='none');
   document.getElementById('start-overlay').style.display='flex';
   document.body.classList.add('paused');
 }
@@ -856,8 +920,15 @@ function forceEndBatch(){
 
 function spreadPositions(n){
   const w=arena.offsetWidth||window.innerWidth;
-  const step=(w-130)/n;
-  return shuffle(Array.from({length:n},(_,i)=>50+i*step+Math.random()*step*.55));
+  const bw = w<=360 ? 52 : w<=480 ? 62 : 90;  // matches CSS balloon widths
+  // give every balloon its own column of width `step`; jitter only within the
+  // leftover space (step - bw) so columns can never overlap, and clamp to arena.
+  const step = w / n;
+  const jitter = Math.max(0, step - bw);
+  return shuffle(Array.from({length:n},(_,i)=>{
+    let left = i*step + Math.random()*jitter;
+    return Math.max(0, Math.min(left, w - bw));   // keep fully on screen
+  }));
 }
 
 // ════════════════════════════════════════════
