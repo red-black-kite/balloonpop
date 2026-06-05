@@ -1,0 +1,8 @@
+{
+  "appId": "com.balloonpop.app",
+  "appName": "BalloonPop",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

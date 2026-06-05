@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+
+# Android build outputs (built by CI)
+android/app/build/
+android/.gradle/
+android/local.properties
+
+# iOS build outputs
+ios/App/Pods/
+ios/App/App.xcworkspace/
+*.xcuserstate

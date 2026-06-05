@@ -1,0 +1,82 @@
+name: Build BalloonPop APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:        # lets you trigger manually from GitHub UI
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout code ───────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Java 17 (required by modern Android Gradle Plugin) ──
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # ── 3. Cache Gradle dependencies (speeds up subsequent runs)
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      # ── 4. Make gradlew executable ─────────────────────────────
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+
+      # ── 5. Sync web assets into Android project ────────────────
+      - name: Copy web assets into Android project
+        run: |
+          mkdir -p android/app/src/main/assets/public
+          cp -r www/* android/app/src/main/assets/public/
+          echo "✅ Web assets copied"
+          ls android/app/src/main/assets/public/
+
+      # ── 6. Build debug APK ─────────────────────────────────────
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+
+      # ── 7. Rename APK with version info ───────────────────────
+      - name: Rename APK
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             release/BalloonPop-debug.apk
+          echo "✅ APK ready: $(du -sh release/BalloonPop-debug.apk)"
+
+      # ── 8. Upload APK as downloadable artifact ─────────────────
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BalloonPop-APK
+          path: release/BalloonPop-debug.apk
+          retention-days: 30
+
+      # ── 9. Print download instructions ─────────────────────────
+      - name: Build summary
+        run: |
+          echo "## 🎈 BalloonPop APK Built Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Download:** Go to this workflow run → scroll down → **Artifacts** section → click **BalloonPop-APK**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Install on Android:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download \`BalloonPop-debug.apk\` to your phone" >> $GITHUB_STEP_SUMMARY
+          echo "2. Open the file — Android will ask to allow installation from unknown sources" >> $GITHUB_STEP_SUMMARY
+          echo "3. Tap Install ✅" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🎈 Balloon Pop – Learn with Fun!</title>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4FC3F7"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="BalloonPop"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.svg"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+
+    body{
+      font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+      background:linear-gradient(180deg,#4FC3F7 0%,#B3E5FC 45%,#A5D6A7 100%);
+      min-height:100vh;overflow:hidden;user-select:none;
+    }
+
+    /* ── HUD ── */
+    #hud{
+      position:fixed;top:0;left:0;right:0;
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px 20px;
+      background:rgba(255,255,255,.45);
+      backdrop-filter:blur(10px);
+      border-bottom:2px solid rgba(255,255,255,.7);
+      box-shadow:0 4px 20px rgba(0,0,0,.08);
+      z-index:100;flex-wrap:wrap;gap:8px;
+      transition:background .25s;
+    }
+    #hud.flash-red{background:rgba(255,70,70,.45)!important}
+    .logo{font-size:1.5rem;font-weight:900;color:#e94560;
+          text-shadow:2px 2px 0 rgba(0,0,0,.08);letter-spacing:1px}
+    .hud-stats{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .stat-pill{background:rgba(255,255,255,.75);border-radius:20px;
+               padding:5px 14px;font-size:1rem;font-weight:800;color:#333;
+               box-shadow:0 2px 8px rgba(0,0,0,.08)}
+    #mode-btns{display:flex;gap:8px}
+    .mode-btn{padding:7px 20px;border:none;border-radius:20px;
+              font-size:.95rem;font-weight:800;cursor:pointer;letter-spacing:.5px;
+              transition:transform .15s,opacity .15s,box-shadow .15s}
+    .mode-btn:active{transform:scale(.93)}
+    .mode-btn.active{opacity:1;transform:scale(1.06);
+      box-shadow:0 0 0 3px #fff,0 0 0 5px rgba(0,0,0,.2),0 4px 14px rgba(0,0,0,.15)}
+    .mode-btn:not(.active){opacity:.45}
+    #btn-alpha{background:linear-gradient(135deg,#ff9f43,#ff6b6b);color:#fff}
+    #btn-num  {background:linear-gradient(135deg,#54a0ff,#5f27cd);color:#fff}
+
+    /* ── ARENA ── */
+    #arena{position:fixed;top:62px;left:0;right:0;bottom:110px;overflow:hidden}
+
+    /* ── BALLOON ── */
+    .balloon-wrap{
+      position:absolute;bottom:-170px;
+      display:flex;flex-direction:column;align-items:center;
+      cursor:pointer;
+      will-change:transform;        /* GPU layer */
+      animation:float-up linear forwards;
+    }
+    .balloon-wrap:hover .balloon{transform:scale(1.08) rotate(-3deg)}
+    .balloon-wrap:active .balloon{transform:scale(.9)}
+
+    .balloon{
+      width:90px;height:108px;
+      border-radius:50% 50% 50% 50%/55% 55% 45% 45%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:2.2rem;font-weight:900;color:#fff;
+      text-shadow:0 2px 6px rgba(0,0,0,.3);
+      position:relative;
+      box-shadow:
+        inset -14px -10px 0 rgba(0,0,0,.1),
+        inset 8px 8px 0 rgba(255,255,255,.2),
+        0 8px 24px rgba(0,0,0,.2);
+      transition:transform .12s;
+    }
+    .balloon::before{           /* shine */
+      content:'';position:absolute;top:14px;left:16px;
+      width:18px;height:12px;
+      background:rgba(255,255,255,.45);
+      border-radius:50%;transform:rotate(-30deg);
+    }
+    .balloon-knot{width:12px;height:12px;border-radius:50%;margin-top:-4px}
+    .balloon-string{width:2px;height:55px;
+      background:repeating-linear-gradient(
+        180deg,rgba(0,0,0,.2) 0,rgba(0,0,0,.2) 4px,
+        transparent 4px,transparent 8px)}
+
+    .balloon-wrap.popping{animation:none!important;pointer-events:none}
+    .balloon-wrap.popping .balloon{animation:pop-anim .35s ease-out forwards}
+
+    @keyframes float-up{from{bottom:-170px}to{bottom:110%}}
+    @keyframes pop-anim{
+      0%  {transform:scale(1);  opacity:1}
+      40% {transform:scale(1.7);opacity:.8}
+      100%{transform:scale(0);  opacity:0}
+    }
+
+    /* ── PARTICLES ── */
+    .particle{
+      position:absolute;border-radius:50%;pointer-events:none;
+      will-change:transform;
+      animation:pfly .65s ease-out forwards;
+    }
+    @keyframes pfly{
+      0%  {transform:translate(0,0) scale(1);opacity:1}
+      100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0}
+    }
+    @keyframes shake{
+      0%,100%{transform:translateX(0)}
+      25%    {transform:translateX(-10px)}
+      75%    {transform:translateX(10px)}
+    }
+    .shake{animation:shake .3s ease}
+
+    /* ── SCORE FLASH ── */
+    .score-flash{
+      position:absolute;font-size:1.8rem;font-weight:900;
+      color:#2ecc71;text-shadow:0 2px 6px rgba(0,0,0,.2);
+      pointer-events:none;animation:flash-up .8s ease-out forwards;
+    }
+    @keyframes flash-up{
+      0%  {opacity:1;transform:translateY(0) scale(1)}
+      100%{opacity:0;transform:translateY(-60px) scale(1.3)}
+    }
+
+    /* ── BATCH CHEER ── */
+    #batch-cheer{
+      position:fixed;top:45%;left:50%;
+      transform:translate(-50%,-50%);
+      z-index:180;font-size:2.8rem;font-weight:900;
+      color:#fff;pointer-events:none;display:none;
+      text-shadow:0 4px 20px rgba(0,0,0,.3),0 0 50px rgba(255,220,0,.9);
+    }
+    .cheer-show{animation:cheer-pop 1.2s ease-out forwards}
+    @keyframes cheer-pop{
+      0%  {opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-5deg)}
+      35% {opacity:1;transform:translate(-50%,-50%) scale(1.25) rotate(2deg)}
+      60% {transform:translate(-50%,-50%) scale(.97)}
+      80% {opacity:1}
+      100%{opacity:0;transform:translate(-50%,-50%) scale(1.1)}
+    }
+
+    /* ── OVERLAYS ── */
+    .overlay{
+      position:fixed;inset:0;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      z-index:200;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);
+    }
+    .overlay-card{
+      background:linear-gradient(145deg,#fff,#f0f8ff);
+      border-radius:32px;padding:44px 54px;text-align:center;
+      box-shadow:0 24px 70px rgba(0,0,0,.3);max-width:380px;width:90%;
+    }
+    .overlay-card .big{font-size:5rem;margin-bottom:12px}
+    .overlay-card h1{font-size:2.5rem;margin-bottom:8px;color:#222}
+    .overlay-card p {font-size:1.05rem;color:#666;margin-bottom:28px;line-height:1.6}
+    .play-btn{
+      padding:16px 44px;font-size:1.3rem;font-weight:900;
+      border:none;border-radius:30px;
+      background:linear-gradient(135deg,#ff6b6b,#feca57);
+      color:#fff;cursor:pointer;letter-spacing:.5px;
+      box-shadow:0 8px 24px rgba(254,202,87,.5);
+      transition:transform .15s,box-shadow .15s;
+    }
+    .play-btn:hover {transform:scale(1.06);box-shadow:0 12px 32px rgba(254,202,87,.65)}
+    .play-btn:active{transform:scale(.97)}
+
+    /* ── RESPONSIVE BALLOON SIZE ── */
+    @media(max-width:480px){
+      .balloon{width:62px;height:74px;font-size:1.5rem}
+      .balloon::before{top:10px;left:11px;width:13px;height:9px}
+      .balloon-string{height:40px}
+    }
+    @media(max-width:360px){
+      .balloon{width:52px;height:62px;font-size:1.25rem}
+      .balloon::before{top:8px;left:9px;width:11px;height:7px}
+      .balloon-string{height:32px}
+    }
+
+    /* ── PAUSE ANIMATIONS DURING OVERLAYS (GPU relief) ── */
+    body.paused .balloon-wrap,
+    body.paused .cloud,
+    body.paused .kid-unit,
+    body.paused .held-balloon { animation-play-state:paused !important; }
+
+    /* ── SETTINGS ── */
+    .settings-card{max-width:440px;padding:32px 36px}
+    .settings-card .big{font-size:3.5rem;margin-bottom:6px}
+    .settings-card h1{font-size:2rem;margin-bottom:4px}
+    .settings-card .subtitle{font-size:.95rem;color:#888;margin-bottom:22px}
+
+    .s-section{margin-bottom:18px;text-align:left}
+    .s-label{font-size:.75rem;font-weight:800;color:#aaa;text-transform:uppercase;
+             letter-spacing:1.5px;margin-bottom:8px}
+    .s-row{display:flex;gap:8px;flex-wrap:wrap}
+
+    .tog-btn{
+      flex:1;min-width:100px;padding:11px 10px;
+      border:2.5px solid #e8e8f0;border-radius:14px;
+      font-size:.92rem;font-weight:700;cursor:pointer;
+      background:#f7f7ff;color:#777;
+      transition:all .2s;
+    }
+    .tog-btn:hover{border-color:#ccc;color:#444}
+    .tog-btn.active{
+      border-color:#ff6b6b;
+      background:linear-gradient(135deg,rgba(255,107,107,.12),rgba(254,202,87,.12));
+      color:#333;
+      box-shadow:0 2px 10px rgba(255,107,107,.2);
+    }
+
+    /* number range */
+    .range-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:4px}
+    .range-group{display:flex;align-items:center;gap:6px}
+    .range-lbl{font-size:.85rem;font-weight:700;color:#888}
+    .step-btn{
+      width:34px;height:34px;border-radius:50%;border:none;
+      background:linear-gradient(135deg,#ff9f43,#ff6b6b);
+      color:#fff;font-size:1.1rem;font-weight:900;cursor:pointer;
+      transition:transform .1s;box-shadow:0 3px 8px rgba(255,107,107,.3);
+    }
+    .step-btn:active{transform:scale(.88)}
+    .range-val{
+      font-size:1.5rem;font-weight:900;color:#333;
+      min-width:42px;text-align:center;
+      background:#f0f4ff;border-radius:10px;padding:2px 6px;
+    }
+    .range-sep{font-size:1.2rem;color:#bbb;font-weight:700}
+    .range-hint{
+      text-align:center;font-size:.82rem;color:#aaa;
+      margin-top:8px;font-weight:600;
+    }
+    .settings-divider{border:none;border-top:1.5px solid #f0f0f8;margin:6px 0 18px}
+
+    /* voice picker */
+    .voice-row{display:flex;gap:8px;align-items:center}
+    .voice-sel{
+      flex:1;padding:9px 12px;border-radius:12px;
+      border:2px solid #e8e8f0;background:#f7f7ff;
+      font-size:.88rem;font-weight:600;color:#444;
+      cursor:pointer;outline:none;
+      transition:border-color .2s;
+    }
+    .voice-sel:focus{border-color:#ff6b6b}
+    .voice-test-btn{
+      width:40px;height:40px;border-radius:50%;border:none;
+      background:linear-gradient(135deg,#ff9f43,#ff6b6b);
+      color:#fff;font-size:1.1rem;cursor:pointer;flex-shrink:0;
+      box-shadow:0 3px 8px rgba(255,107,107,.3);
+      transition:transform .1s;
+    }
+    .voice-test-btn:active{transform:scale(.88)}
+
+    /* ── WIN CONFETTI (canvas-based, no extra DOM) ── */
+    #confetti-canvas{
+      position:fixed;inset:0;pointer-events:none;
+      z-index:300;display:none;
+    }
+
+    /* ── CLOUDS ── */
+    .cloud{
+      position:absolute;background:rgba(255,255,255,.8);border-radius:60px;
+      filter:blur(3px);will-change:transform;
+      animation:drift linear infinite;
+    }
+    @keyframes drift{from{transform:translateX(-220px)}to{transform:translateX(110vw)}}
+
+    /* ══════════════════════════════════
+       KIDS SCENE  — only 2 anims each
+    ══════════════════════════════════ */
+    #kids-scene{
+      position:fixed;bottom:0;left:0;right:0;height:110px;
+      display:flex;justify-content:space-around;align-items:flex-end;
+      z-index:60;
+      background:linear-gradient(180deg,transparent 0%,#66BB6A 38%,#4CAF50 100%);
+      overflow:visible;pointer-events:none;
+    }
+    #kids-scene::before{
+      content:'🌸  🌼  🌻  🌺  🌸  🌼  🌻  🌺  🌸  🌼  🌻  🌺';
+      position:absolute;top:-13px;left:0;right:0;
+      font-size:.85rem;text-align:center;letter-spacing:8px;
+      pointer-events:none;white-space:nowrap;overflow:hidden;
+    }
+
+    .kid-unit{
+      position:relative;display:flex;flex-direction:column;align-items:center;
+      padding-bottom:6px;will-change:transform;
+      animation:kid-sway 2.6s ease-in-out infinite;
+      animation-delay:var(--sd,0s);
+      transform-origin:bottom center;
+    }
+    @keyframes kid-sway{
+      0%,100%{transform:rotate(-3deg)}
+      50%    {transform:rotate(3deg)}
+    }
+
+    /* held balloon — bobs in sync with sway (same duration) */
+    .held-balloon{
+      position:absolute;
+      width:20px;height:24px;
+      border-radius:50% 50% 50% 50%/55% 55% 45% 45%;
+      background:var(--bc,#ff6b6b);
+      top:var(--bt,-66px);left:var(--bl,28px);
+      box-shadow:inset -3px -2px 0 rgba(0,0,0,.12),inset 2px 2px 0 rgba(255,255,255,.3);
+    }
+    .held-balloon::after{
+      content:'';position:absolute;bottom:-9px;left:50%;
+      transform:translateX(-50%);width:1.5px;height:10px;
+      background:rgba(0,0,0,.3);
+    }
+
+    /* batch-win: kids jump (brief, 3 cycles, auto-stop) */
+    #kids-scene.batch-win .kid-unit{
+      animation:kid-cheer .55s ease-out 3 var(--sd,0s);
+    }
+    @keyframes kid-cheer{
+      0%,100%{transform:translateY(0) rotate(0)}
+      30%    {transform:translateY(-18px) rotate(-4deg)}
+      65%    {transform:translateY(-9px) rotate(4deg)}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HUD ── -->
+<div id="hud">
+  <div class="logo">🎈 BalloonPop</div>
+  <div class="hud-stats">
+    <div class="stat-pill" id="score-display">⭐ 0</div>
+    <div class="stat-pill" id="hearts">❤️❤️❤️</div>
+  </div>
+  <div id="mode-btns">
+    <button class="mode-btn active" id="btn-alpha" onclick="setMode('alpha')">ABC</button>
+    <button class="mode-btn"        id="btn-num"   onclick="setMode('num')">123</button>
+  </div>
+</div>
+
+<!-- ── Arena ── -->
+<div id="arena"></div>
+
+<!-- ── Batch cheer ── -->
+<div id="batch-cheer"></div>
+
+<!-- ── Confetti canvas (performance: one canvas, no 90 DOM nodes) ── -->
+<canvas id="confetti-canvas"></canvas>
+
+<!-- ══════════════════════════════════
+     KIDS SCENE
+══════════════════════════════════ -->
+<div id="kids-scene">
+
+  <!-- Kid 1 – red shirt -->
+  <div class="kid-unit" style="--sd:0s">
+    <div class="held-balloon" style="--bc:#ff6b6b;--bt:-66px;--bl:31px"></div>
+    <svg viewBox="0 0 54 80" width="54" height="80" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="27" cy="7"  rx="13" ry="8"  fill="#8B4513"/>
+      <circle  cx="27" cy="16" r="13"           fill="#FDBCB4"/>
+      <circle  cx="22" cy="15" r="2.2"          fill="#333"/>
+      <circle  cx="32" cy="15" r="2.2"          fill="#333"/>
+      <circle  cx="22.8" cy="14.3" r=".8"       fill="#fff"/>
+      <circle  cx="32.8" cy="14.3" r=".8"       fill="#fff"/>
+      <path d="M21 20 Q27 26 33 20" stroke="#c0837a" fill="none" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="18" cy="20" r="3" fill="rgba(255,150,130,.35)"/>
+      <circle cx="36" cy="20" r="3" fill="rgba(255,150,130,.35)"/>
+      <rect x="13" y="29" width="28" height="22" rx="7" fill="#ff6b6b"/>
+      <line x1="13" y1="35" x2="4"  y2="46" stroke="#FDBCB4" stroke-width="5.5" stroke-linecap="round"/>
+      <line x1="41" y1="33" x2="49" y2="20" stroke="#FDBCB4" stroke-width="5.5" stroke-linecap="round"/>
+      <line x1="49" y1="20" x2="46" y2="6"  stroke="rgba(0,0,0,.28)" stroke-width="1.2"/>
+      <rect x="14" y="49" width="10" height="22" rx="4" fill="#3d6bbf"/>
+      <rect x="30" y="49" width="10" height="22" rx="4" fill="#3d6bbf"/>
+      <ellipse cx="19" cy="71" rx="6" ry="3.5" fill="#333"/>
+      <ellipse cx="35" cy="71" rx="6" ry="3.5" fill="#333"/>
+    </svg>
+  </div>
+
+  <!-- Kid 2 – blue shirt -->
+  <div class="kid-unit" style="--sd:.65s">
+    <div class="held-balloon" style="--bc:#54a0ff;--bt:-64px;--bl:10px"></div>
+    <svg viewBox="0 0 54 80" width="54" height="80" xmlns="http://www.w3.org/2000/svg">
+      <rect x="12" y="5" width="30" height="10" rx="5" fill="#e74c3c"/>
+      <rect x="10" y="11" width="34" height="5"  rx="2" fill="#c0392b"/>
+      <circle cx="27" cy="18" r="13" fill="#F5CBA7"/>
+      <circle cx="22" cy="17" r="2.2" fill="#333"/>
+      <circle cx="32" cy="17" r="2.2" fill="#333"/>
+      <circle cx="22.8" cy="16.3" r=".8" fill="#fff"/>
+      <circle cx="32.8" cy="16.3" r=".8" fill="#fff"/>
+      <path d="M22 22 Q27 27 32 22" stroke="#b07844" fill="none" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="18" cy="22" r="3" fill="rgba(240,180,140,.4)"/>
+      <circle cx="36" cy="22" r="3" fill="rgba(240,180,140,.4)"/>
+      <rect x="13" y="31" width="28" height="22" rx="7" fill="#54a0ff"/>
+      <line x1="13" y1="35" x2="5"  y2="22" stroke="#F5CBA7" stroke-width="5.5" stroke-linecap="round"/>
+      <line x1="5"  y1="22" x2="8"  y2="8"  stroke="rgba(0,0,0,.28)" stroke-width="1.2"/>
+      <line x1="41" y1="35" x2="50" y2="46" stroke="#F5CBA7" stroke-width="5.5" stroke-linecap="round"/>
+      <rect x="14" y="51" width="10" height="22" rx="4" fill="#27ae60"/>
+      <rect x="30" y="51" width="10" height="22" rx="4" fill="#27ae60"/>
+      <ellipse cx="19" cy="73" rx="6" ry="3.5" fill="#2c3e50"/>
+      <ellipse cx="35" cy="73" rx="6" ry="3.5" fill="#2c3e50"/>
+    </svg>
+  </div>
+
+  <!-- Kid 3 – purple dress -->
+  <div class="kid-unit" style="--sd:1.1s">
+    <div class="held-balloon" style="--bc:#c56ef2;--bt:-67px;--bl:29px"></div>
+    <svg viewBox="0 0 54 80" width="54" height="80" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="27" cy="6"  rx="14" ry="7"  fill="#F1C40F"/>
+      <circle  cx="13" cy="12" r="5"            fill="#F1C40F"/>
+      <circle  cx="41" cy="12" r="5"            fill="#F1C40F"/>
+      <circle  cx="27" cy="16" r="13"           fill="#FDBCB4"/>
+      <circle  cx="22" cy="15" r="2.2"          fill="#333"/>
+      <circle  cx="32" cy="15" r="2.2"          fill="#333"/>
+      <circle  cx="22.8" cy="14.3" r=".8"       fill="#fff"/>
+      <circle  cx="32.8" cy="14.3" r=".8"       fill="#fff"/>
+      <line x1="20" y1="12" x2="19" y2="10" stroke="#333" stroke-width="1" stroke-linecap="round"/>
+      <line x1="22" y1="11.5" x2="22" y2="9.5" stroke="#333" stroke-width="1" stroke-linecap="round"/>
+      <line x1="30" y1="11.5" x2="30" y2="9.5" stroke="#333" stroke-width="1" stroke-linecap="round"/>
+      <line x1="32" y1="12" x2="33" y2="10" stroke="#333" stroke-width="1" stroke-linecap="round"/>
+      <path d="M21 20 Q27 26 33 20" stroke="#c0837a" fill="none" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="18" cy="20" r="3" fill="rgba(255,150,130,.35)"/>
+      <circle cx="36" cy="20" r="3" fill="rgba(255,150,130,.35)"/>
+      <polygon points="13,29 41,29 46,51 8,51" fill="#c56ef2"/>
+      <rect x="16" y="29" width="22" height="12" rx="4" fill="#a855d4"/>
+      <line x1="13" y1="34" x2="4"  y2="45" stroke="#FDBCB4" stroke-width="5.5" stroke-linecap="round"/>
+      <line x1="41" y1="33" x2="49" y2="20" stroke="#FDBCB4" stroke-width="5.5" stroke-linecap="round"/>
+      <line x1="49" y1="20" x2="46" y2="6"  stroke="rgba(0,0,0,.28)" stroke-width="1.2"/>
+      <rect x="16" y="51" width="9"  height="20" rx="4" fill="#e84393"/>
+      <rect x="29" y="51" width="9"  height="20" rx="4" fill="#e84393"/>
+      <ellipse cx="20" cy="71" rx="6" ry="3.5" fill="#333"/>
+      <ellipse cx="34" cy="71" rx="6" ry="3.5" fill="#333"/>
+    </svg>
+  </div>
+
+  <!-- Kid 4 – green shirt -->
+  <div class="kid-unit" style="--sd:1.75s">
+    <div class="held-balloon" style="--bc:#1dd1a1;--bt:-65px;--bl:10px"></div>
+    <svg viewBox="0 0 54 80" width="54" height="80" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="27" cy="7"  rx="13" ry="7"  fill="#2c3e50"/>
+      <circle  cx="27" cy="17" r="13"           fill="#F5CBA7"/>
+      <circle  cx="22" cy="16" r="2.2"          fill="#333"/>
+      <circle  cx="32" cy="16" r="2.2"          fill="#333"/>
+      <circle  cx="22.8" cy="15.3" r=".8"       fill="#fff"/>
+      <circle  cx="32.8" cy="15.3" r=".8"       fill="#fff"/>
+      <path d="M20 21 Q27 28 34 21" stroke="#b07844" fill="none" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="18" cy="21" r="3" fill="rgba(240,180,140,.4)"/>
+      <circle cx="36" cy="21" r="3" fill="rgba(240,180,140,.4)"/>
+      <rect x="13" y="30" width="28" height="22" rx="7" fill="#1dd1a1"/>
+      <line x1="13" y1="34" x2="5"  y2="21" stroke="#F5CBA7" stroke-width="5.5" stroke-linecap="round"/>
+      <line x1="5"  y1="21" x2="8"  y2="7"  stroke="rgba(0,0,0,.28)" stroke-width="1.2"/>
+      <line x1="41" y1="34" x2="50" y2="45" stroke="#F5CBA7" stroke-width="5.5" stroke-linecap="round"/>
+      <rect x="14" y="50" width="10" height="22" rx="4" fill="#e17055"/>
+      <rect x="30" y="50" width="10" height="22" rx="4" fill="#e17055"/>
+      <ellipse cx="19" cy="72" rx="6" ry="3.5" fill="#2c3e50"/>
+      <ellipse cx="35" cy="72" rx="6" ry="3.5" fill="#2c3e50"/>
+    </svg>
+  </div>
+
+</div><!-- /kids-scene -->
+
+<!-- ── Overlays ── -->
+<div class="overlay" id="start-overlay">
+  <div class="overlay-card settings-card">
+    <div class="big">🎈</div>
+    <h1>Balloon Pop!</h1>
+    <p class="subtitle">Choose your settings then play!</p>
+
+    <!-- Mode -->
+    <div class="s-section">
+      <div class="s-label">What to learn?</div>
+      <div class="s-row">
+        <button class="tog-btn active" id="s-alpha" onclick="sSelectMode('alpha')">🔤 Letters</button>
+        <button class="tog-btn"        id="s-num"   onclick="sSelectMode('num')">🔢 Numbers</button>
+      </div>
+    </div>
+
+    <hr class="settings-divider"/>
+
+    <!-- Letter options -->
+    <div class="s-section" id="s-letter-opts">
+      <div class="s-label">Letter Case</div>
+      <div class="s-row">
+        <button class="tog-btn active" id="s-upper" onclick="sSelectCase('upper')">🅰 Capital (A B C)</button>
+        <button class="tog-btn"        id="s-lower" onclick="sSelectCase('lower')">🔡 Small &nbsp;(a b c)</button>
+      </div>
+    </div>
+
+    <!-- Number options -->
+    <div class="s-section" id="s-num-opts" style="display:none">
+      <div class="s-label">Number Range</div>
+      <div class="range-wrap">
+        <div class="range-group">
+          <span class="range-lbl">From</span>
+          <button class="step-btn" onclick="sAdjust('from',-1)">−</button>
+          <span  class="range-val" id="s-from">0</span>
+          <button class="step-btn" onclick="sAdjust('from',1)">+</button>
+        </div>
+        <span class="range-sep">→</span>
+        <div class="range-group">
+          <span class="range-lbl">To</span>
+          <button class="step-btn" onclick="sAdjust('to',-1)">−</button>
+          <span  class="range-val" id="s-to">9</span>
+          <button class="step-btn" onclick="sAdjust('to',1)">+</button>
+        </div>
+      </div>
+      <div class="range-hint" id="s-hint">10 numbers · 2 batches</div>
+    </div>
+
+    <hr class="settings-divider"/>
+
+    <!-- Voice picker -->
+    <div class="s-section">
+      <div class="s-label">Voice</div>
+      <div class="voice-row">
+        <select class="voice-sel" id="voice-select" onchange="onVoiceChange(this.value)">
+          <option>Loading voices…</option>
+        </select>
+        <button class="voice-test-btn" onclick="testVoice()" title="Test voice">🔊</button>
+      </div>
+    </div>
+
+    <button class="play-btn" onclick="applySettings()">▶ Let's Play!</button>
+  </div>
+</div>
+
+<div class="overlay" id="gameover-overlay" style="display:none">
+  <div class="overlay-card">
+    <div class="big">😢</div>
+    <h1>Oops!</h1>
+    <p id="go-score"></p>
+    <button class="play-btn" onclick="showSettings()">🔄 Try Again</button>
+  </div>
+</div>
+
+<div class="overlay" id="win-overlay" style="display:none">
+  <div class="overlay-card">
+    <div class="big">🏆</div>
+    <h1>You Win!</h1>
+    <p id="win-score"></p>
+    <button class="play-btn" onclick="showSettings()">🎈 Play Again</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  AUDIO  — nodes auto-disconnect after playback
+//           preventing AudioNode accumulation
+// ════════════════════════════════════════════
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+function resumeAC(){ if(AC.state==='suspended') AC.resume(); }
+
+/* Creates an oscillator+gain pair wired to destination.
+   Automatically disconnects when the oscillator finishes → no node leak. */
+function mkOsc(type, freq){
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type=type; if(freq!==undefined) o.frequency.value=freq;
+  o.connect(g); g.connect(AC.destination);
+  o.onended=()=>{ try{o.disconnect();g.disconnect();}catch(_){} };
+  return {o,g};
+}
+
+/* Creates a noise BufferSource wired through a chain of nodes.
+   chain = [AudioNode, ...] — source → chain[0] → chain[1] → ... → destination */
+function mkNoise(sz, chain){
+  const buf=AC.createBuffer(1,sz,AC.sampleRate);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<sz;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/sz,4);
+  const src=AC.createBufferSource(); src.buffer=buf;
+  chain.forEach(n=>n.connect(AC.destination)); // last in chain → dest
+  // wire: src → chain[0] → chain[1] → … (chain internally connected by caller)
+  src.connect(chain[0]);
+  src.onended=()=>{ try{src.disconnect();chain.forEach(n=>n.disconnect());}catch(_){} };
+  return src;
+}
+
+function playPop(){
+  resumeAC();
+  const {o,g}=mkOsc('sine');
+  o.frequency.setValueAtTime(480,AC.currentTime);
+  o.frequency.exponentialRampToValueAtTime(90,AC.currentTime+.2);
+  g.gain.setValueAtTime(.7,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.22);
+  o.start(); o.stop(AC.currentTime+.22);
+}
+
+function playWrong(){
+  resumeAC();
+  const {o,g}=mkOsc('sawtooth');
+  o.frequency.setValueAtTime(160,AC.currentTime);
+  g.gain.setValueAtTime(.3,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.28);
+  o.start(); o.stop(AC.currentTime+.28);
+}
+
+function playWin(){
+  resumeAC();
+  [523,659,784,1047].forEach((f,i)=>{
+    const {o,g}=mkOsc('triangle',f);
+    const t=AC.currentTime+i*.15;
+    g.gain.setValueAtTime(.45,t); g.gain.exponentialRampToValueAtTime(.001,t+.45);
+    o.start(t); o.stop(t+.45);
+  });
+}
+
+function playClap(){
+  resumeAC();
+  for(let c=0;c<5;c++){
+    const t0=AC.currentTime+c*.17;
+    const sz=Math.floor(AC.sampleRate*.035);
+    // build filter chain (all disconnect via mkNoise.onended)
+    const hp =AC.createBiquadFilter(); hp.type='highpass';  hp.frequency.value=600;
+    const bp1=AC.createBiquadFilter(); bp1.type='bandpass'; bp1.frequency.value=1000+c*80; bp1.Q.value=.6;
+    const bp2=AC.createBiquadFilter(); bp2.type='bandpass'; bp2.frequency.value=2400+c*60; bp2.Q.value=1.2;
+    const gn =AC.createGain();
+    // connect chain internally: hp→bp1→bp2→gn→dest
+    hp.connect(bp1); bp1.connect(bp2); bp2.connect(gn); gn.connect(AC.destination);
+    gn.gain.setValueAtTime(1.4,t0); gn.gain.exponentialRampToValueAtTime(.001,t0+.055);
+    const src=mkNoise(sz,[hp,bp1,bp2,gn]);
+    src.start(t0); src.stop(t0+.06);
+  }
+  // ta-da fanfare after clap
+  const fanfare=[523,659,784,1047,1319,1047,1319], ftimes=[0,.1,.18,.26,.36,.48,.54];
+  fanfare.forEach((freq,i)=>{
+    const {o,g}=mkOsc('triangle',freq);
+    const t=AC.currentTime+.9+ftimes[i];
+    const dur=i>=4?.32:.18;
+    g.gain.setValueAtTime(.38,t); g.gain.exponentialRampToValueAtTime(.001,t+dur+.05);
+    o.start(t); o.stop(t+dur+.08);
+    // add a soft octave-up layer on the last two notes for sparkle
+    if(i>=4){
+      const {o:o2,g:g2}=mkOsc('sine',freq*2);
+      g2.gain.setValueAtTime(.12,t); g2.gain.exponentialRampToValueAtTime(.001,t+dur);
+      o2.start(t); o2.stop(t+dur);
+    }
+  });
+}
+
+// ════════════════════════════════════════════
+//  KIDS VOICE
+// ════════════════════════════════════════════
+let kidsVoice = null;
+let enVoices   = [];   // all English voices available in this browser
+
+// Voices Chrome prefers (loaded async); Safari/macOS loads them synchronously
+const PREFERRED_VOICES = [
+  'Google UK English Female',   // Chrome desktop
+  'Google US English',          // Chrome desktop fallback
+  'Microsoft Zira',             // Windows Chrome
+  'Microsoft Libby',            // Windows Edge/Chrome
+  'Samantha',                   // macOS Safari
+  'Karen','Moira','Tessa','Fiona','Victoria','Nicky','Sandy'
+];
+
+function initVoice(){
+  const all = speechSynthesis.getVoices();
+  enVoices = all.filter(v => v.lang.startsWith('en'));
+
+  // Pick best default
+  kidsVoice = null;
+  for(const name of PREFERRED_VOICES){
+    const v = enVoices.find(v => v.name.includes(name));
+    if(v){ kidsVoice = v; break; }
+  }
+  if(!kidsVoice)
+    kidsVoice = enVoices.find(v => /female/i.test(v.name))
+             || enVoices[0] || null;
+
+  populateVoicePicker();
+}
+
+function populateVoicePicker(){
+  const sel = document.getElementById('voice-select');
+  if(!sel || !enVoices.length) return;
+  sel.innerHTML = '';
+  enVoices.forEach((v, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = v.name + (v.localService ? '' : ' 🌐');
+    if(v === kidsVoice) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function onVoiceChange(idx){
+  kidsVoice = enVoices[parseInt(idx)] || null;
+  testVoice();
+}
+function testVoice(){
+  speakChar(cfg.mode === 'num' ? '5' : 'A');
+}
+
+// Chrome fires onvoiceschanged; call initVoice then too
+if(window.speechSynthesis){
+  speechSynthesis.onvoiceschanged = initVoice;
+  // Also try immediately (works in Safari/Firefox)
+  initVoice();
+}
+
+function _speak(text, pitch, rate){
+  if(!window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US'; u.pitch = pitch; u.rate = rate; u.volume = 1;
+  if(kidsVoice) u.voice = kidsVoice;
+  // Chrome sometimes needs a tiny delay after cancel()
+  setTimeout(() => speechSynthesis.speak(u), 50);
+}
+
+function speakChar(ch)        { _speak(ch,   1.4, 0.85); }
+function speakPhrase(text)    { _speak(text, 1.5, 0.9);  }
+
+// ════════════════════════════════════════════
+//  CONSTANTS
+// ════════════════════════════════════════════
+const COLORS=['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff',
+              '#5f27cd','#00d2d3','#ff9f43','#1dd1a1','#c56ef2'];
+const BATCH_SIZE=5;
+const FLOAT_SEC=20;   // balloon float duration base (seconds)
+const CHEER_MSGS=['⭐ Amazing!','🎉 Perfect!','👏 Great Job!','🌟 Brilliant!','🔥 Superb!'];
+
+// ════════════════════════════════════════════
+//  SETTINGS STATE
+// ════════════════════════════════════════════
+const cfg={mode:'alpha', letterCase:'upper', numFrom:0, numTo:9};
+
+function sSelectMode(m){
+  cfg.mode=m;
+  document.getElementById('s-alpha').classList.toggle('active',m==='alpha');
+  document.getElementById('s-num').classList.toggle('active',m==='num');
+  document.getElementById('s-letter-opts').style.display=m==='alpha'?'':'none';
+  document.getElementById('s-num-opts').style.display=m==='num'?'':'none';
+  // sync HUD pills
+  document.getElementById('btn-alpha').classList.toggle('active',m==='alpha');
+  document.getElementById('btn-num').classList.toggle('active',m==='num');
+}
+function sSelectCase(c){
+  cfg.letterCase=c;
+  document.getElementById('s-upper').classList.toggle('active',c==='upper');
+  document.getElementById('s-lower').classList.toggle('active',c==='lower');
+}
+function sAdjust(which,delta){
+  if(which==='from'){
+    cfg.numFrom=Math.max(0,Math.min(cfg.numTo-1,cfg.numFrom+delta));
+    document.getElementById('s-from').textContent=cfg.numFrom;
+  } else {
+    cfg.numTo=Math.max(cfg.numFrom+1,Math.min(100,cfg.numTo+delta));
+    document.getElementById('s-to').textContent=cfg.numTo;
+  }
+  const count=cfg.numTo-cfg.numFrom+1;
+  const batches=Math.ceil(count/BATCH_SIZE);
+  document.getElementById('s-hint').textContent=
+    `${count} number${count>1?'s':''} · ${batches} batch${batches>1?'es':''}`;
+}
+function applySettings(){
+  startGame();
+}
+// Show settings screen (used by win/gameover "play again")
+function showSettings(){
+  document.getElementById('start-overlay').style.display='flex';
+  document.body.classList.add('paused');
+}
+
+// ════════════════════════════════════════════
+//  GAME STATE
+// ════════════════════════════════════════════
+let pool=[], sortedBatch=[], batchNextIdx=0;
+let batchErrors=0, totalPopped=0, totalChars=0;
+let lives=3, score=0, gameRunning=false;
+let balloons=[], balloonId=0;
+let cloudTimer=null, spawnTimers=[], batchSafetyTimer=null;
+
+const arena=document.getElementById('arena');
+
+// ════════════════════════════════════════════
+//  MODE (HUD quick-switch — opens settings)
+// ════════════════════════════════════════════
+function setMode(m){
+  sSelectMode(m);
+  // show settings overlay so user can confirm
+  ['gameover-overlay','win-overlay'].forEach(id=>
+    document.getElementById(id).style.display='none');
+  document.getElementById('start-overlay').style.display='flex';
+  if(gameRunning){ gameRunning=false; clearAllTimers(); arena.innerHTML=''; balloons=[]; }
+}
+
+function fullSet(){
+  if(cfg.mode==='alpha'){
+    const letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    return cfg.letterCase==='upper' ? letters : letters.map(l=>l.toLowerCase());
+  } else {
+    const arr=[];
+    for(let i=cfg.numFrom;i<=cfg.numTo;i++) arr.push(String(i));
+    return arr;
+  }
+}
+function shuffle(a){
+  const r=[...a];
+  for(let i=r.length-1;i>0;i--){const j=0|Math.random()*(i+1);[r[i],r[j]]=[r[j],r[i]];}
+  return r;
+}
+
+// ════════════════════════════════════════════
+//  START
+// ════════════════════════════════════════════
+function startGame(){
+  resumeAC();
+  document.body.classList.remove('paused'); // resume animations
+  ['start-overlay','gameover-overlay','win-overlay'].forEach(id=>
+    document.getElementById(id).style.display='none');
+  stopConfetti();
+  document.getElementById('batch-cheer').style.display='none';
+  document.getElementById('kids-scene').classList.remove('batch-win');
+
+  clearAllTimers();
+  arena.innerHTML='';
+  balloons=[]; balloonId=0;
+  lives=3; score=0; totalPopped=0; batchErrors=0;
+  gameRunning=true;
+  const set=fullSet(); totalChars=set.length; pool=shuffle(set);
+  updateHUD();
+  spawnCloud(); cloudTimer=setInterval(spawnCloud,9000);
+  spawnBatch();
+}
+
+function clearAllTimers(){
+  spawnTimers.forEach(clearTimeout); spawnTimers=[];
+  clearTimeout(batchSafetyTimer); batchSafetyTimer=null;
+  clearInterval(cloudTimer); cloudTimer=null;
+  cloudCount=0;
+  // Return all active balloons to a clean state
+  balloons.forEach(b=>{ try{b.el.remove();}catch(_){} });
+  balloons=[];
+}
+
+// ════════════════════════════════════════════
+//  BATCH
+// ════════════════════════════════════════════
+function spawnBatch(){
+  if(!gameRunning) return;
+  spawnTimers.forEach(clearTimeout); spawnTimers=[];
+
+  const chars=pool.splice(0,BATCH_SIZE);
+  if(!chars.length){ endGame(); return; }
+
+  sortedBatch=[...chars].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  batchNextIdx=0; batchErrors=0;
+
+  const pos=spreadPositions(chars.length);
+  chars.forEach((ch,i)=>{
+    const t=setTimeout(()=>{ if(gameRunning) spawnBalloon(ch,pos[i]); },
+                       Math.random()*2800);
+    spawnTimers.push(t);
+  });
+
+  // Safety: after max float time + buffer, force-clear any stuck balloons
+  const safetyMs=(FLOAT_SEC+10)*1000;
+  batchSafetyTimer=setTimeout(()=>{ forceEndBatch(); },safetyMs);
+}
+
+/* If animationend events were missed, clean up and move on */
+function forceEndBatch(){
+  if(!gameRunning) return;
+  const stuck=[...balloons];
+  stuck.forEach(b=>{
+    if(b.el.parentNode) b.el.remove();
+  });
+  balloons=[];
+  batchErrors+=stuck.length;   // count missed balloons as errors
+  lives=Math.max(0,lives-stuck.length);
+  updateHUD();
+  if(lives<=0){ handleGameOver(); return; }
+  checkBatchDone();
+}
+
+function spreadPositions(n){
+  const w=arena.offsetWidth||window.innerWidth;
+  const bw = w<=360 ? 56 : w<=480 ? 66 : 94;  // matches CSS responsive widths
+  const margin = bw * 0.6;
+  const step=(w - margin * 2)/n;
+  return shuffle(Array.from({length:n},(_,i)=>margin+i*step+Math.random()*step*.45));
+}
+
+// ════════════════════════════════════════════
+//  SPAWN ONE BALLOON
+// ════════════════════════════════════════════
+function spawnBalloon(char,leftPx){
+  if(!gameRunning) return;
+  const color=COLORS[Math.floor(Math.random()*COLORS.length)];
+  const id=balloonId++;
+  const dur=FLOAT_SEC+Math.random()*7;
+
+  const wrap=document.createElement('div');
+  wrap.className='balloon-wrap';
+  const fontSize=char.length>1?'1.3rem':'2.2rem';
+  wrap.style.cssText=`left:${leftPx}px;animation-duration:${dur}s`;
+  wrap.innerHTML=`
+    <div class="balloon" style="background:${color};font-size:${fontSize}">${char}</div>
+    <div class="balloon-knot" style="background:${darken(color)}"></div>
+    <div class="balloon-string"></div>`;
+
+  const obj={el:wrap,char,id,color,gone:false};
+  wrap.addEventListener('click',     ()=>onTap(obj));
+  wrap.addEventListener('touchstart',e=>{e.preventDefault();onTap(obj);},{passive:false});
+
+  // animationend: only fires when float-up finishes (balloon escaped)
+  // Use { once:true } so it can only fire once per balloon
+  wrap.addEventListener('animationend', e=>{
+    // Only react to the float-up on the wrap itself, not bubbled child animations
+    if(e.target!==wrap) return;
+    if(!obj.gone) onEscape(obj);
+  },{once:true});
+
+  arena.appendChild(wrap);
+  balloons.push(obj);
+}
+
+function darken(hex){
+  const n=parseInt(hex.slice(1),16);
+  return `rgb(${Math.max(0,(n>>16)-40)},${Math.max(0,((n>>8)&0xff)-40)},${Math.max(0,(n&0xff)-40)})`;
+}
+
+function removeById(id){
+  const i=balloons.findIndex(b=>b.id===id);
+  if(i!==-1){balloons[i].el.remove();balloons.splice(i,1);}
+}
+
+// ════════════════════════════════════════════
+//  ESCAPE
+// ════════════════════════════════════════════
+function onEscape(obj){
+  if(!gameRunning||obj.gone) return;
+  obj.gone=true;
+  removeById(obj.id);
+  batchErrors++;
+  lives--;
+  updateHUD();
+  if(lives<=0){handleGameOver();return;}
+  // advance if this was the blocking char
+  if(obj.char===sortedBatch[batchNextIdx]){
+    batchNextIdx++;
+    while(batchNextIdx<sortedBatch.length&&
+          !balloons.find(b=>b.char===sortedBatch[batchNextIdx]))
+      batchNextIdx++;
+  }
+  checkBatchDone();
+}
+
+// ════════════════════════════════════════════
+//  TAP / CLICK
+// ════════════════════════════════════════════
+function onTap(obj){
+  if(!gameRunning||obj.gone) return;
+  if(obj.el.classList.contains('popping')) return;
+
+  if(obj.char===sortedBatch[batchNextIdx]){
+    // ✅ Correct
+    obj.gone=true;  // mark gone immediately so double-tap is ignored
+    batchNextIdx++;
+    totalPopped++;
+    playPop();
+    speakChar(obj.char);
+    score+=10;
+    updateHUD();
+    showScoreFlash(obj.el,'+10');
+    spawnParticles(obj.el,obj.color);
+    obj.el.classList.add('popping');
+    setTimeout(()=>{removeById(obj.id);checkBatchDone();},380);
+  } else {
+    // ❌ Wrong order
+    batchErrors++;
+    playWrong();
+    lives--;
+    updateHUD();
+    obj.el.classList.add('shake');
+    setTimeout(()=>obj.el.classList.remove('shake'),350);
+    if(lives<=0) setTimeout(handleGameOver,300);
+  }
+}
+
+// ════════════════════════════════════════════
+//  BATCH DONE
+// ════════════════════════════════════════════
+function checkBatchDone(){
+  if(!gameRunning||balloons.length>0) return;
+  clearTimeout(batchSafetyTimer);
+
+  if(batchErrors===0){
+    playClap();
+    showBatchCheer(CHEER_MSGS[Math.floor(Math.random()*CHEER_MSGS.length)]);
+    speakPhrase('Amazing! Well done!');
+    kidsCheer();
+  }
+
+  if(pool.length===0){ endGame(); }
+  else { setTimeout(spawnBatch,batchErrors===0?2000:1200); }
+}
+
+function endGame(){
+  setTimeout(()=>{
+    totalPopped===totalChars ? handleWin() : handleGameOver();
+  },500);
+}
+
+// ════════════════════════════════════════════
+//  KIDS CHEER
+// ════════════════════════════════════════════
+function kidsCheer(){
+  const sc=document.getElementById('kids-scene');
+  sc.classList.remove('batch-win');
+  void sc.offsetWidth;           // force reflow to restart animation
+  sc.classList.add('batch-win');
+  setTimeout(()=>sc.classList.remove('batch-win'),2000);
+}
+
+// ════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════
+function showBatchCheer(msg){
+  const el=document.getElementById('batch-cheer');
+  el.textContent=msg;
+  el.className='cheer-show';
+  el.style.display='block';
+  setTimeout(()=>el.style.display='none',1300);
+}
+
+// ── Particle pool — reuse DOM nodes instead of create/destroy each pop ──
+const pPool=[];
+function getParticle(){
+  const p=pPool.pop()||document.createElement('div');
+  p.className='particle';
+  return p;
+}
+function recycleParticle(p){
+  // Reset and return to pool (max 40 nodes kept warm)
+  p.style.cssText='';
+  if(pPool.length<40) pPool.push(p);
+  // else falls off → GC'd
+}
+
+function spawnParticles(wrap,color){
+  const r=wrap.getBoundingClientRect(),ar=arena.getBoundingClientRect();
+  const cx=r.left+r.width/2-ar.left, cy=r.top+r.height/2-ar.top;
+  const cols=[color,'#fff','#feca57','#ff6b6b','#48dbfb'];
+  const frag=document.createDocumentFragment(); // single reflow
+  for(let i=0;i<14;i++){
+    const p=getParticle();
+    const a=(i/14)*Math.PI*2, d=40+Math.random()*65, sz=8+Math.random()*7;
+    p.style.cssText=`left:${cx}px;top:${cy}px;
+      background:${cols[0|Math.random()*cols.length]};
+      width:${sz}px;height:${sz}px;
+      --tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px`;
+    frag.appendChild(p);
+    p.addEventListener('animationend',()=>{ p.remove(); recycleParticle(p); },{once:true});
+  }
+  arena.appendChild(frag); // one DOM insertion for all 14 particles
+}
+
+function showScoreFlash(wrap,text){
+  const r=wrap.getBoundingClientRect(),ar=arena.getBoundingClientRect();
+  const el=document.createElement('div');
+  el.className='score-flash'; el.textContent=text;
+  el.style.left=(r.left-ar.left+20)+'px';
+  el.style.top =(r.top-ar.top+20)+'px';
+  arena.appendChild(el);
+  el.addEventListener('animationend',()=>el.remove(),{once:true});
+}
+
+function updateHUD(){
+  document.getElementById('score-display').textContent='⭐ '+score;
+  document.getElementById('hearts').textContent='❤️'.repeat(Math.max(0,lives));
+}
+
+// ════════════════════════════════════════════
+//  WIN / LOSE
+// ════════════════════════════════════════════
+function handleWin(){
+  gameRunning=false; clearAllTimers();
+  document.body.classList.add('paused');
+  playWin(); startConfetti();
+  speakPhrase('You win! Wonderful job!');
+  document.getElementById('win-score').textContent=`Amazing! You scored ${score} points! 🌟`;
+  setTimeout(()=>document.getElementById('win-overlay').style.display='flex',1400);
+}
+function handleGameOver(){
+  gameRunning=false; clearAllTimers();
+  document.body.classList.add('paused');
+  speakPhrase('Oh no! Try again!');
+  document.getElementById('go-score').textContent=`You scored ${score} points. Keep practising!`;
+  setTimeout(()=>document.getElementById('gameover-overlay').style.display='flex',400);
+}
+
+// ════════════════════════════════════════════
+//  CONFETTI  — canvas-based (no DOM spam)
+// ════════════════════════════════════════════
+const confCanvas=document.getElementById('confetti-canvas');
+const confCtx=confCanvas.getContext('2d');
+let confPieces=[], confRaf=null;
+
+function startConfetti(){
+  confCanvas.width=window.innerWidth; confCanvas.height=window.innerHeight;
+  confCanvas.style.display='block';
+  const cols=['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff','#1dd1a1','#ff9f43'];
+  confPieces=Array.from({length:60},()=>({
+    x:Math.random()*confCanvas.width,
+    y:-20-Math.random()*80,
+    w:8+Math.random()*10, h:8+Math.random()*10,
+    color:cols[0|Math.random()*cols.length],
+    r:Math.random()*360,
+    dr:(Math.random()-0.5)*6,
+    vy:2+Math.random()*3,
+    vx:(Math.random()-0.5)*2,
+    circle:Math.random()>.5
+  }));
+  confRaf=requestAnimationFrame(drawConfetti);
+}
+
+function drawConfetti(){
+  confCtx.clearRect(0,0,confCanvas.width,confCanvas.height);
+  let alive=false;
+  confPieces.forEach(p=>{
+    p.y+=p.vy; p.x+=p.vx; p.r+=p.dr;
+    if(p.y<confCanvas.height+30) alive=true;
+    confCtx.save();
+    confCtx.translate(p.x,p.y);
+    confCtx.rotate(p.r*Math.PI/180);
+    confCtx.fillStyle=p.color;
+    confCtx.globalAlpha=Math.max(0,1-p.y/confCanvas.height);
+    if(p.circle){ confCtx.beginPath(); confCtx.arc(0,0,p.w/2,0,Math.PI*2); confCtx.fill(); }
+    else{ confCtx.fillRect(-p.w/2,-p.h/2,p.w,p.h); }
+    confCtx.restore();
+  });
+  if(alive) confRaf=requestAnimationFrame(drawConfetti);
+  else       stopConfetti();
+}
+
+function stopConfetti(){
+  if(confRaf){cancelAnimationFrame(confRaf);confRaf=null;}
+  confCtx.clearRect(0,0,confCanvas.width,confCanvas.height);
+  confCanvas.style.display='none';
+  confPieces=[];   // release all piece objects → GC
+}
+
+// ════════════════════════════════════════════
+//  CLOUDS  (max 2 on screen)
+// ════════════════════════════════════════════
+let cloudCount=0;
+function spawnCloud(){
+  if(cloudCount>=2) return;
+  cloudCount++;
+  const c=document.createElement('div'); c.className='cloud';
+  const w=80+Math.random()*150, h=40+Math.random()*45;
+  const top=20+Math.random()*(arena.offsetHeight*.45);
+  const dur=20+Math.random()*22;
+  c.style.cssText=`width:${w}px;height:${h}px;top:${top}px;left:-220px;animation-duration:${dur}s`;
+  arena.appendChild(c);
+  c.addEventListener('animationend',()=>{c.remove();cloudCount--;},{once:true});
+}
+
+// ════════════════════════════════════════════
+//  KEYBOARD
+// ════════════════════════════════════════════
+// ════════════════════════════════════════════
+//  SERVICE WORKER REGISTRATION (PWA)
+// ════════════════════════════════════════════
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js')
+      .then(()=>console.log('✅ SW registered'))
+      .catch(e=>console.warn('SW error:',e));
+  });
+}
+
+document.addEventListener('keydown',e=>{
+  if(!gameRunning) return;
+  if(e.key.length!==1||!/[A-Za-z0-9]/.test(e.key)) return;
+  // preserve case: lowercase mode expects lowercase keys
+  const key=(cfg.mode==='alpha'&&cfg.letterCase==='lower')
+    ? e.key.toLowerCase() : e.key.toUpperCase();
+  const match=balloons.find(b=>b.char===key&&!b.gone&&!b.el.classList.contains('popping'));
+  if(match){
+    onTap(match);
+  } else {
+    playWrong(); batchErrors++; lives--;
+    updateHUD();
+    const hud=document.getElementById('hud');
+    hud.classList.add('flash-red');
+    setTimeout(()=>hud.classList.remove('flash-red'),320);
+    if(lives<=0) setTimeout(handleGameOver,320);
+  }
+});
+</script>
+</body>
+</html>
