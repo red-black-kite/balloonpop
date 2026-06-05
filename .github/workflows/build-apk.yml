@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:        # lets you trigger manually from GitHub UI
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,19 +13,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Checkout code ───────────────────────────────────────
+      # 1. Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Java 17 (required by modern Android Gradle Plugin) ──
+      # 2. Java 17 (required by Android Gradle Plugin 8.x)
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # ── 3. Cache Gradle dependencies (speeds up subsequent runs)
-      - name: Cache Gradle packages
+      # 3. Node (needed for npm install → @capacitor/android in node_modules)
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 4. Install npm dependencies (@capacitor/android, @capacitor/core etc.)
+      - name: Install npm dependencies
+        run: npm ci
+
+      # 5. Cache Gradle
+      - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
@@ -34,49 +45,32 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
-      # ── 4. Make gradlew executable ─────────────────────────────
-      - name: Grant execute permission for gradlew
+      # 6. Make gradlew executable
+      - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # ── 5. Sync web assets into Android project ────────────────
-      - name: Copy web assets into Android project
+      # 7. Copy web assets into Android project
+      - name: Copy web assets
         run: |
           mkdir -p android/app/src/main/assets/public
           cp -r www/* android/app/src/main/assets/public/
-          echo "✅ Web assets copied"
-          ls android/app/src/main/assets/public/
 
-      # ── 6. Build debug APK ─────────────────────────────────────
+      # 8. Build debug APK
       - name: Build Debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
-      # ── 7. Rename APK with version info ───────────────────────
-      - name: Rename APK
-        run: |
-          mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk \
-             release/BalloonPop-debug.apk
-          echo "✅ APK ready: $(du -sh release/BalloonPop-debug.apk)"
-
-      # ── 8. Upload APK as downloadable artifact ─────────────────
-      - name: Upload APK artifact
+      # 9. Upload APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: BalloonPop-APK
-          path: release/BalloonPop-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      # ── 9. Print download instructions ─────────────────────────
+      # 10. Summary
       - name: Build summary
         run: |
-          echo "## 🎈 BalloonPop APK Built Successfully!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Download:** Go to this workflow run → scroll down → **Artifacts** section → click **BalloonPop-APK**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Install on Android:**" >> $GITHUB_STEP_SUMMARY
-          echo "1. Download \`BalloonPop-debug.apk\` to your phone" >> $GITHUB_STEP_SUMMARY
-          echo "2. Open the file — Android will ask to allow installation from unknown sources" >> $GITHUB_STEP_SUMMARY
-          echo "3. Tap Install ✅" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎈 BalloonPop APK Built!" >> $GITHUB_STEP_SUMMARY
+          echo "Download the APK from the **Artifacts** section below." >> $GITHUB_STEP_SUMMARY
+          echo "Transfer to your Android phone and tap to install." >> $GITHUB_STEP_SUMMARY
